@@ -1,0 +1,90 @@
+server:
+  port: ${SERVER_PORT:8088}
+  servlet:
+    session:
+      cookie:
+        name: HNSEC_SESSION
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: lax
+      timeout: 8h
+
+spring:
+  application:
+    name: henan-sec-agent-server
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:13306/henan_sec_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USERNAME:henan_agent}
+    password: ${DB_PASSWORD:henan_agent_dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:16379}
+      password: ${REDIS_PASSWORD:henan_redis_dev}
+      timeout: 3s
+      repositories:
+        enabled: false
+  session:
+    store-type: redis
+    redis:
+      namespace: henan:sec:agent:session
+  mail:
+    host: ${MAIL_HOST:127.0.0.1}
+    port: ${MAIL_PORT:11025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:false}
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 20MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173,http://127.0.0.1:5173}
+  bootstrap-admin:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:true}
+    username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:Admin@123456}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:admin@henan-sec.local}
+  registration:
+    require-approval: ${REGISTRATION_REQUIRE_APPROVAL:true}
+  password-reset:
+    public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}
+    ttl-minutes: 20
+    expose-token-in-dev: ${EXPOSE_RESET_TOKEN_IN_DEV:true}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:19000}
+    access-key: ${MINIO_ACCESS_KEY:henan_minio}
+    secret-key: ${MINIO_SECRET_KEY:henan_minio_dev_password}
+    bucket: ${MINIO_BUCKET:henan-sec-agent}
+  dify:
+    base-url: ${DIFY_BASE_URL:http://127.0.0.1:8081/v1}
+    api-key: ${DIFY_API_KEY:}
+    timeout-seconds: ${DIFY_TIMEOUT_SECONDS:1800}
+    workflow-keys:
+      ip-vt: ${DIFY_WORKFLOW_IP_VT_API_KEY:}
+      ip-weibu: ${DIFY_WORKFLOW_IP_WEIBU_API_KEY:}
+      domain: ${DIFY_WORKFLOW_DOMAIN_API_KEY:}
+      url: ${DIFY_WORKFLOW_URL_API_KEY:}
+      cve: ${DIFY_WORKFLOW_CVE_API_KEY:}
+      hash: ${DIFY_WORKFLOW_HASH_API_KEY:}

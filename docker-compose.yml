@@ -1,0 +1,70 @@
+name: henan-sec-agent
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: henan-sec-agent-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: henan_sec_agent
+      MYSQL_USER: henan_agent
+      MYSQL_PASSWORD: henan_agent_dev
+      MYSQL_ROOT_PASSWORD: root_dev_only
+      TZ: Asia/Shanghai
+    ports:
+      - "13306:3306"
+    volumes:
+      - henan_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_dev_only"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: henan-sec-agent-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "henan_redis_dev"]
+    ports:
+      - "16379:6379"
+    volumes:
+      - henan_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "henan_redis_dev", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    container_name: henan-sec-agent-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: henan_minio
+      MINIO_ROOT_PASSWORD: henan_minio_dev_password
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - henan_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: henan-sec-agent-mailpit
+    restart: unless-stopped
+    ports:
+      - "11025:1025"
+      - "18025:8025"
+
+volumes:
+  henan_mysql_data:
+  henan_redis_data:
+  henan_minio_data:
+

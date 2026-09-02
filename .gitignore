@@ -2,3 +2,15 @@
 .env.workflows
 .env.tools
 node_modules/
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
+backend/target/
+web/dist/
+web/.env.local
+web/*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+uploads/

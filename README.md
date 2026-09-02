@@ -1,92 +1,99 @@
-# 河南省教育科研计算机网络中心 - 网络安全垂域智能体
+# 河南省教育科研网网络安全垂域智能体
 
-这是一个可本地运行的 Web App 原型，已经包含：
+正式版采用 `Vue 3 + Spring Boot 3 + MySQL + Redis + MinIO + Dify`。根目录原有的
+`index.html / script.js / style.css / server.js` 作为 V1 原型保留，新版代码位于：
 
-- 顶部标题与河南教育科研网安全风格
-- 中间聊天面板（分析进度）
-- 右侧会话记录
-- 底部四个按钮：`URL查询 / 域名查询 / IP查询 / Hash查询`
-- 本地后端接口：`/api/chat`
-- Dify 接口预留
+- `web/`：Vue 3 工作区前端
+- `backend/`：Spring Boot 业务后端
+- `docker-compose.yml`：隔离的 MySQL、Redis、MinIO 和开发邮件服务
 
-## 1. 安装 Node.js
+## 已实现能力
 
-先确认电脑安装的是 **Node.js 18 或更高版本**。
+- 注册、登录、退出、当前用户查询
+- Redis 服务端 Session 与 CSRF 防护
+- 找回密码、一次性重置令牌、开发邮件服务
+- 个人资料、头像、手机号、邮箱、出生日期、性别、学历和职务
+- 系统管理员、组织管理员、分析员和只读角色
+- 注册审核、账号启用/停用与角色管理
+- 用户会话隔离、会话软删除、消息持久化
+- 本地会话 ID 与 Dify `conversation_id` 安全映射
+- Dify 流式输出代理和运行状态持久化
+- Codex 风格安全研判工作区
 
-在项目目录运行：
+## 端口
 
-```powershell
-node -v
-```
+| 服务 | 地址 |
+| --- | --- |
+| Vue 前端 | http://127.0.0.1:5173 |
+| Spring Boot API | http://127.0.0.1:8088 |
+| MySQL | 127.0.0.1:13306 |
+| Redis | 127.0.0.1:16379 |
+| MinIO API | http://127.0.0.1:19000 |
+| MinIO Console | http://127.0.0.1:19001 |
+| Mailpit | http://127.0.0.1:18025 |
 
-## 2. 启动本地项目
+这些端口与本机已有的 3306/6379 服务隔离。
 
-在项目目录运行：
+## 启动
 
-```powershell
-npm start
-```
-
-启动后浏览器打开：
-
-```text
-http://localhost:3000
-```
-
-如果暂时没有配置 Dify，系统会进入“本地模拟模式”，这一步的目的是先确认：
-
-- 页面已经能打开
-- 前端已经能调用后端
-- 聊天消息已经能正常显示
-
-## 3. 接入 Dify
-
-把 `.env.example` 复制为 `.env`，然后填写你自己的参数：
-
-```env
-PORT=3000
-DIFY_BASE_URL=http://127.0.0.1:8080/v1
-DIFY_API_KEY=app-xxxxxxxxxxxxxxxx
-DIFY_USER=henan-sec-user
-```
-
-如果你是通过 SSH 隧道把服务器上的 Dify 转发到本机 `8080`，建议这里明确写成：
-
-```env
-DIFY_BASE_URL=http://127.0.0.1:8080/v1
-```
-
-不要写 `localhost`。Windows 下 Node.js 可能优先走 IPv6 的 `::1`，而 SSH 隧道通常只绑定在 IPv4 `127.0.0.1`，结果就是浏览器看起来后端在线，但后端调用 Dify 会一直超时。
-
-然后重启：
+在项目根目录执行：
 
 ```powershell
-npm start
+docker compose up -d
 ```
 
-## 4. 当前调用逻辑
+后端：
 
-前端发送请求到：
+```powershell
+.\scripts\start-backend.ps1
+```
+
+前端：
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+默认开发管理员：
 
 ```text
-POST /api/chat
+用户名：admin
+密码：Admin@123456
 ```
 
-后端再转发给 Dify：
+该密码仅用于首次本地启动。部署前必须通过 `BOOTSTRAP_ADMIN_PASSWORD` 修改，并将
+`EXPOSE_RESET_TOKEN_IN_DEV` 设为 `false`。
 
-```text
-POST {DIFY_BASE_URL}/chat-messages
+## 构建检查
+
+```powershell
+cd backend
+mvn clean test package
+
+cd ..\web
+npm run build
 ```
 
-这样做的好处是：
+后端启动后可运行隔离冒烟测试：
 
-- 前端不直接暴露 API Key
-- 后面换接口地址更方便
-- 以后接内网也只改后端
+```powershell
+.\scripts\smoke-test.ps1
+```
 
-## 5. 建议的开发顺序
+## Dify 关联规则
 
-1. 先跑通页面
-2. 再验证本地模拟对话
-3. 再填 Dify 参数
-4. 最后再处理内网、鉴权、部署
+1. 浏览器只提交本地会话 ID。
+2. Spring Security 从 Redis Session 识别当前用户。
+3. 后端检查 `conversation.user_id` 与当前用户一致。
+4. 后端从 MySQL 读取 Dify `conversation_id`。
+5. 调用 Dify 时使用 `hnsec_{用户UUID}` 作为 `user`。
+6. 首次返回的 Dify `conversation_id` 保存到 MySQL，后续由后端读取。
+
+Dify API Key 只允许出现在服务端环境变量中，禁止进入 Vue 代码或提交 Git。
+
+## 数据库迁移
+
+Flyway 脚本位于 `backend/src/main/resources/db/migration/`。禁止手工修改已经上线执行过
+的迁移；后续变更应新增 `V3__...sql`、`V4__...sql`。
