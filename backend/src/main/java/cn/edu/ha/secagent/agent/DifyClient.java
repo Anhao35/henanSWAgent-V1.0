@@ -66,8 +66,9 @@ public class DifyClient {
                     result.taskId = text(event, "task_id", result.taskId);
                     var eventName = event.path("event").asText();
                     if (("message".equals(eventName) || "agent_message".equals(eventName)) && event.hasNonNull("answer")) {
-                        answer.append(event.path("answer").asText());
-                        consumer.accept(new DifyEvent("replace", answer.toString(), result.conversationId));
+                        var delta = event.path("answer").asText();
+                        answer.append(delta);
+                        consumer.accept(new DifyEvent("append", delta, result.conversationId));
                     } else if ("workflow_finished".equals(eventName)) {
                         var workflowAnswer = findWorkflowAnswer(event.path("data").path("outputs"));
                         if (!workflowAnswer.isBlank()) {
@@ -119,4 +120,3 @@ public class DifyClient {
     private static final class MutableResult { String conversationId = ""; String messageId = ""; String taskId = ""; }
     private static final class DifyStreamException extends RuntimeException { DifyStreamException(String message) { super(message); } }
 }
-

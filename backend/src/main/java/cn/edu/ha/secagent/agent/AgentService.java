@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @RequiredArgsConstructor
@@ -79,8 +80,9 @@ public class AgentService {
     }
 
     public void executeStream(PreparedRun prepared, OutputStream output) {
+        var clientConnected = new AtomicBoolean(true);
+        writeSafely(output, Map.of("type", "status", "message", "请求已保存，正在连接安全智能体", "requestId", prepared.requestId()), clientConnected);
         try {
-            write(output, Map.of("type", "status", "message", "请求已保存，正在连接安全智能体", "requestId", prepared.requestId()));
             var result = difyClient.streamChat(
                     prepared.externalUserId(),
                     prepared.content(),
@@ -94,26 +96,22 @@ public class AgentService {
                             if (event.conversationId() != null && !event.conversationId().isBlank()) {
                                 payload.put("conversationId", event.conversationId());
                             }
-                            write(output, payload);
-                        } catch (Exception exception) {
-                            throw new StreamWriteException(exception);
+                            writeSafely(output, payload, clientConnected);
+                        } catch (Exception ignored) {
+                            // 客户端断开不应中止 Dify 执行；最终结果仍需持久化。
                         }
                     });
             complete(prepared, result);
-            write(output, Map.of(
+            writeSafely(output, Map.of(
                     "type", "done",
                     "answer", result.answer(),
                     "requestId", prepared.requestId(),
                     "conversationId", result.conversationId() == null ? "" : result.conversationId()
-            ));
+            ), clientConnected);
         } catch (Exception exception) {
             var message = exception instanceof ApiException ? exception.getMessage() : "Agent执行失败";
             fail(prepared, message);
-            try {
-                write(output, Map.of("type", "error", "error", message, "requestId", prepared.requestId()));
-            } catch (Exception ignored) {
-                // 客户端已经断开，无需继续写入。
-            }
+            writeSafely(output, Map.of("type", "error", "error", message, "requestId", prepared.requestId()), clientConnected);
         }
     }
 
@@ -158,6 +156,15 @@ public class AgentService {
         }
     }
 
+    private void writeSafely(OutputStream output, Map<String, ?> payload, AtomicBoolean clientConnected) {
+        if (!clientConnected.get()) return;
+        try {
+            write(output, payload);
+        } catch (Exception ignored) {
+            clientConnected.set(false);
+        }
+    }
+
     private static String limit(String value) {
         if (value == null) return null;
         return value.length() > 1000 ? value.substring(0, 1000) : value;
@@ -174,8 +181,4 @@ public class AgentService {
             LocalDateTime startedAt
     ) {}
 
-    private static final class StreamWriteException extends RuntimeException {
-        StreamWriteException(Throwable cause) { super(cause); }
-    }
 }
-

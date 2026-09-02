@@ -15,5 +15,12 @@ foreach ($fileName in @('.env', '.env.workflows')) {
 
 docker compose -f (Join-Path $ProjectRoot 'docker-compose.yml') up -d
 Set-Location (Join-Path $ProjectRoot 'backend')
-mvn spring-boot:run
+$jarPath = Join-Path (Get-Location) 'target\henan-sec-agent-server-1.0.0-SNAPSHOT.jar'
+if (-not (Test-Path -LiteralPath $jarPath)) {
+    mvn -q test package
+    if ($LASTEXITCODE -ne 0) { throw '后端构建失败' }
+}
 
+# 直接运行可执行 JAR，避免 Maven spring-boot:run 在包含中文的 Windows
+# 路径下生成错误的派生 JVM classpath。
+java -jar $jarPath

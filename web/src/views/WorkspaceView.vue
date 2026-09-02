@@ -56,11 +56,17 @@ async function send() {
   draft.value = ''; loading.value = true; error.value = ''
   const userMessage: Message = { role: 'USER', content, status: 'COMPLETED', createdAt: new Date().toISOString() }
   const assistant: Message = { role: 'ASSISTANT', content: '正在连接安全智能体…', status: 'STREAMING' }
+  let receivedAnswer = false
   messages.value.push(userMessage, assistant); await scrollBottom()
   try {
     await streamRequest(`/conversations/${activeId.value}/messages/stream`, { message: content }, event => {
-      if (event.type === 'replace') assistant.content = event.answer || ''
-      if (event.type === 'status' && !assistant.content.includes('##')) assistant.content = `## 正在分析\n\n- ${event.message}`
+      if (event.type === 'append') {
+        if (!receivedAnswer) assistant.content = ''
+        assistant.content += event.answer || ''
+        receivedAnswer = true
+      }
+      if (event.type === 'replace') { assistant.content = event.answer || ''; receivedAnswer = true }
+      if (event.type === 'status' && !receivedAnswer) assistant.content = `## 正在分析\n\n- ${event.message}`
       if (event.type === 'done') { assistant.content = event.answer || assistant.content; assistant.status = 'COMPLETED' }
       if (event.type === 'error') throw new Error(event.error || 'Agent执行失败')
       scrollBottom()
