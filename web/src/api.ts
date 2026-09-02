@@ -3,6 +3,11 @@ import axios from 'axios'
 export const api = axios.create({
   baseURL: '/api',
   withCredentials: true,
+  // Spring Security 6 returns a BREACH-protected (masked) token from
+  // /auth/csrf, while the XSRF-TOKEN cookie contains the raw token. Axios
+  // would otherwise overwrite our masked header with that raw cookie value,
+  // causing every mutating request to be rejected with HTTP 403.
+  withXSRFToken: false,
   timeout: 30_000,
 })
 
@@ -58,4 +63,3 @@ export async function streamRequest(
   }
   if (buffer.trim()) onEvent(JSON.parse(buffer))
 }
-
