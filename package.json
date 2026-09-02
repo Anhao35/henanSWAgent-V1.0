@@ -1,0 +1,12 @@
+{
+  "name": "henan-sec-agent-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "河南省教育科研计算机网络中心网络安全垂域智能体",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,4 @@
+.env
+.env.workflows
+.env.tools
+node_modules/

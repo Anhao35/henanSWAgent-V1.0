@@ -1,0 +1,169 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>河南省教育科研计算机网络中心 - 网络安全垂域智能体</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <path d="M32 6L52 14V30C52 43 43.4 54.6 32 58C20.6 54.6 12 43 12 30V14L32 6Z" fill="none" stroke="currentColor" stroke-width="4" />
+            <path d="M22 24H42M24 32H40M28 40H36" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div>
+          <p class="brand__tag">HERCERT · 河南教育科研网</p>
+          <h1>网络安全垂域智能体</h1>
+        </div>
+      </div>
+      <div class="topbar__meta">
+        <p class="topbar__org">河南省教育科研计算机网络中心</p>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section class="query-card">
+          <div class="section-title">
+            <span></span>
+            <h3>快捷查询</h3>
+          </div>
+          <div class="query-buttons">
+            <button class="quick-query" data-type="ip"><i aria-hidden="true">IP</i><span>IP 查询</span></button>
+            <button class="quick-query" data-type="domain"><i aria-hidden="true">D</i><span>域名查询</span></button>
+            <button class="quick-query" data-type="url"><i aria-hidden="true">U</i><span>URL 查询</span></button>
+            <button class="quick-query" data-type="cve"><i aria-hidden="true">C</i><span>CVE 查询</span></button>
+            <button class="quick-query quick-query--wide" data-type="hash"><i aria-hidden="true">#</i><span>Hash 查询</span></button>
+          </div>
+        </section>
+
+        <section class="links-card">
+          <div class="section-title">
+            <span></span>
+            <h3>快速链接</h3>
+          </div>
+          <div class="link-buttons">
+            <a class="quick-link" href="https://sec.ha.edu.cn" target="_blank" rel="noopener noreferrer">河南省教育信息安全检测中心</a>
+            <a class="quick-link" href="https://www.cnnvd.org.cn/" target="_blank" rel="noopener noreferrer">国家信息安全漏洞库（CNNVD）</a>
+          </div>
+        </section>
+
+        <section class="hero-card">
+          <div class="section-title">
+            <span></span>
+            <h3>四大特征</h3>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-card__icon feature-card__icon--intel"></div>
+              <div><strong>多源情报联动</strong>
+              <span>联动 VT、微步与漏洞情报</span></div>
+            </article>
+            <article class="feature-card">
+              <div class="feature-card__icon feature-card__icon--report"></div>
+              <div><strong>结构化报告</strong>
+              <span>清晰呈现指标、证据与结论</span></div>
+            </article>
+            <article class="feature-card">
+              <div class="feature-card__icon feature-card__icon--stream"></div>
+              <div><strong>流式响应展示</strong>
+              <span>实时返回分析进度与结果</span></div>
+            </article>
+            <article class="feature-card">
+              <div class="feature-card__icon feature-card__icon--trace"></div>
+              <div><strong>会话可追溯</strong>
+              <span>保留上下文，支持连续研判</span></div>
+            </article>
+          </div>
+        </section>
+      </aside>
+
+      <section class="workspace" id="workspace">
+        <div class="chat-panel">
+          <div class="chat-panel__header">
+            <div>
+              <p class="chat-panel__label" id="progress"><span></span>智能分析</p>
+              <h2>安全研判工作台</h2>
+            </div>
+            <button class="ghost-button" id="newChatButton" type="button">新建会话</button>
+          </div>
+
+          <div class="messages" id="messageList" aria-live="polite"></div>
+
+          <form class="composer" id="chatForm">
+            <textarea
+              id="messageInput"
+              name="message"
+              rows="4"
+              placeholder="可输入文字，或粘贴图片和文件。"
+            ></textarea>
+            <input
+              class="visually-hidden"
+              id="attachmentInput"
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.ppt,.pptx,.html,.json,.xml,.yaml,.yml"
+              multiple
+            />
+            <div class="attachment-list" id="attachmentList" aria-live="polite"></div>
+            <div class="composer__tools">
+              <button class="attachment-button" id="attachmentButton" type="button" aria-label="上传附件" title="上传附件">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8.5 12.5 14 7a3 3 0 0 1 4.2 4.2l-7.1 7.1a5 5 0 0 1-7.1-7.1l7.4-7.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+            <div class="composer__footer">
+              <button class="primary-button" type="submit" id="sendButton">发送分析请求</button>
+            </div>
+          </form>
+        </div>
+
+        <aside class="history-panel" id="history">
+          <div class="section-title">
+            <span></span>
+            <h3>会话记录</h3>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="query-dialog" id="queryDialog" aria-labelledby="queryDialogTitle">
+    <form class="query-dialog__form" id="queryDialogForm">
+      <div class="query-dialog__header">
+        <div>
+          <p>快捷查询</p>
+          <h2 id="queryDialogTitle">输入查询目标</h2>
+        </div>
+        <button class="dialog-close" id="queryDialogClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <label for="queryDialogInput" id="queryDialogLabel">查询内容</label>
+      <input id="queryDialogInput" name="queryValue" autocomplete="off" required />
+      <div class="query-dialog__actions">
+        <button class="dialog-cancel" id="queryDialogCancel" type="button">取消</button>
+        <button class="primary-button" type="submit">开始查询</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="historyItemTemplate">
+    <button class="history-item" type="button">
+      <span class="history-item__title"></span>
+      <span class="history-item__time"></span>
+    </button>
+  </template>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>
