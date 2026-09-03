@@ -32,5 +32,13 @@ export interface Message {
   status: string
   errorMessage?: string
   createdAt?: string
+  attachments?: Attachment[]
 }
 
+export interface Attachment {
+  id: string
+  name: string
+  contentType: string
+  sizeBytes: number
+  downloadUrl: string
+}

@@ -67,7 +67,7 @@ public class ConversationController {
             @PathVariable UUID conversationId,
             @RequestHeader(value = "X-Request-ID", required = false) String requestId,
             @Valid @RequestBody ConversationDtos.SendMessageRequest body) {
-        var prepared = agentService.prepare(user.id(), conversationId, body.message(), requestId);
+        var prepared = agentService.prepare(user.id(), conversationId, body.message(), body.attachmentIds(), requestId);
         StreamingResponseBody stream = output -> agentService.executeStream(prepared, output);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/x-ndjson"))
@@ -75,4 +75,3 @@ public class ConversationController {
                 .body(stream);
     }
 }
-

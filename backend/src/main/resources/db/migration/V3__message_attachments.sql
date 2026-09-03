@@ -1,0 +1,21 @@
+CREATE TABLE message_attachments (
+  id BINARY(16) NOT NULL,
+  conversation_id BINARY(16) NOT NULL,
+  message_id BINARY(16) NULL,
+  user_id BINARY(16) NOT NULL,
+  object_key VARCHAR(512) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  content_type VARCHAR(128) NOT NULL,
+  size_bytes BIGINT NOT NULL,
+  dify_upload_file_id VARCHAR(64) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'UPLOADED',
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_attachment_conversation (conversation_id, created_at),
+  KEY idx_attachment_message (message_id),
+  KEY idx_attachment_user (user_id),
+  CONSTRAINT fk_attachment_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_attachment_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE SET NULL,
+  CONSTRAINT fk_attachment_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

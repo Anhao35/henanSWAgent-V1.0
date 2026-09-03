@@ -4,19 +4,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import {
-  Bot, ChevronDown, FileSearch, Globe2, Hash, Link2, LogOut, Menu, MessageSquarePlus,
-  PanelLeftClose, Search, Send, Settings, Shield, ShieldCheck, UserRound, X,
+  Bot, Check, ChevronDown, Copy, FileSearch, FileText, Globe2, Hash, Image as ImageIcon,
+  Link2, LogOut, Menu, MessageSquarePlus, PanelLeftClose, Paperclip, RotateCcw,
+  Search, Send, Settings, Shield, ShieldCheck, UserRound, X,
 } from '@lucide/vue'
 import BrandMark from '../components/BrandMark.vue'
 import { api, streamRequest } from '../api'
 import { useAuthStore } from '../stores/auth'
-import type { Conversation, Message } from '../types'
+import type { Attachment, Conversation, Message } from '../types'
 
 const auth = useAuthStore(); const router = useRouter(); const route = useRoute()
 const conversations = ref<Conversation[]>([]); const messages = ref<Message[]>([])
 const activeId = ref<string>(''); const draft = ref(''); const loading = ref(false)
 const sidebarOpen = ref(true); const accountOpen = ref(false); const search = ref('')
 const messageArea = ref<HTMLElement>(); const input = ref<HTMLTextAreaElement>(); const error = ref('')
+const fileInput = ref<HTMLInputElement>(); const attachments = ref<Attachment[]>([])
+const uploading = ref(false); const copiedMessageId = ref('')
 
 const filteredConversations = computed(() => {
   const keyword = search.value.trim().toLowerCase()
@@ -51,15 +54,19 @@ async function newConversation() {
   await nextTick(); input.value?.focus()
 }
 async function send() {
-  const content = draft.value.trim(); if (!content || loading.value) return
+  const content = draft.value.trim(); if ((!content && !attachments.value.length) || loading.value || uploading.value) return
   if (!activeId.value) await newConversation()
+  const outgoingAttachments = [...attachments.value]
   draft.value = ''; loading.value = true; error.value = ''
-  const userMessage: Message = { role: 'USER', content, status: 'COMPLETED', createdAt: new Date().toISOString() }
+  const userMessage: Message = { role: 'USER', content: content || '请分析上传的附件。', status: 'COMPLETED', createdAt: new Date().toISOString(), attachments: outgoingAttachments }
   const assistant: Message = { role: 'ASSISTANT', content: '正在连接安全智能体…', status: 'STREAMING' }
   let receivedAnswer = false
   messages.value.push(userMessage, assistant); await scrollBottom()
   try {
-    await streamRequest(`/conversations/${activeId.value}/messages/stream`, { message: content }, event => {
+    await streamRequest(`/conversations/${activeId.value}/messages/stream`, {
+      message: content,
+      attachmentIds: outgoingAttachments.map(item => item.id),
+    }, event => {
       if (event.type === 'append') {
         if (!receivedAnswer) assistant.content = ''
         assistant.content += event.answer || ''
@@ -74,7 +81,69 @@ async function send() {
     await loadConversations()
   } catch (reason: any) {
     assistant.status = 'FAILED'; assistant.content = `## 分析失败\n\n${reason.message || 'Agent服务暂不可用'}`; error.value = reason.message
-  } finally { loading.value = false; await scrollBottom() }
+  } finally { attachments.value = []; loading.value = false; await scrollBottom() }
+}
+
+async function addFiles(files: File[]) {
+  if (!files.length || uploading.value) return
+  const available = 3 - attachments.value.length
+  if (available <= 0) { error.value = '每条消息最多上传3个附件'; return }
+  if (!activeId.value) await newConversation()
+  uploading.value = true; error.value = ''
+  try {
+    for (const file of files.slice(0, available)) {
+      if (file.size > 15 * 1024 * 1024) { error.value = `${file.name} 超过15MB限制`; continue }
+      const form = new FormData(); form.append('file', file)
+      try {
+        const { data } = await api.post<Attachment>(`/conversations/${activeId.value}/attachments`, form)
+        attachments.value.push(data)
+      } catch (reason: any) {
+        error.value = reason.response?.data?.message || `${file.name} 上传失败`
+      }
+    }
+    if (files.length > available && !error.value) error.value = '每条消息最多上传3个附件'
+  } finally { uploading.value = false; if (fileInput.value) fileInput.value.value = '' }
+}
+
+function chooseFiles(event: Event) {
+  const target = event.target as HTMLInputElement
+  void addFiles(Array.from(target.files || []))
+}
+
+function pasteFiles(event: ClipboardEvent) {
+  const files = Array.from(event.clipboardData?.files || [])
+  if (!files.length) return
+  event.preventDefault()
+  void addFiles(files)
+}
+
+async function removeAttachment(attachment: Attachment) {
+  if (!activeId.value || loading.value) return
+  try {
+    await api.delete(`/conversations/${activeId.value}/attachments/${attachment.id}`)
+    attachments.value = attachments.value.filter(item => item.id !== attachment.id)
+  } catch (reason: any) { error.value = reason.response?.data?.message || '附件移除失败' }
+}
+
+async function copyAnswer(message: Message, index: number) {
+  await navigator.clipboard.writeText(message.content)
+  copiedMessageId.value = message.id || String(index)
+  window.setTimeout(() => { copiedMessageId.value = '' }, 1600)
+}
+
+async function regenerate(index: number) {
+  if (loading.value) return
+  for (let cursor = index - 1; cursor >= 0; cursor--) {
+    if (messages.value[cursor].role === 'USER') {
+      draft.value = messages.value[cursor].content
+      await send()
+      return
+    }
+  }
+}
+
+function formatBytes(value: number) {
+  return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 async function removeConversation(id: string) {
   if (!window.confirm('确定删除这条会话吗？')) return
@@ -113,9 +182,9 @@ watch(() => route.params.id, async id => {
       <header class="workspace-topbar"><button class="icon-button mobile-menu" @click="sidebarOpen = !sidebarOpen"><Menu /></button><div class="workspace-heading"><span class="online-dot"></span><div><strong>{{ activeConversation?.title || '安全研判工作台' }}</strong><small>网络安全垂域智能体 · 在线</small></div></div><div class="topbar-org"><ShieldCheck :size="16" />河南省教育科研计算机网络中心</div></header>
       <section ref="messageArea" class="message-area">
         <div v-if="!activeId" class="welcome-state"><div class="welcome-orb"><Bot :size="36" /></div><span class="eyebrow"><i></i> 多源威胁情报联动</span><h1>今天需要研判什么？</h1><p>输入IP、域名、URL、文件Hash或CVE编号，我会调用安全工具完成分析并生成结构化报告。</p><div class="starter-grid"><button @click="useQuickQuery('IP查询', '8.8.8.8')"><Globe2 /><span><strong>查询可疑IP</strong><small>信誉、归属与恶意活动</small></span></button><button @click="useQuickQuery('域名查询', 'example.com')"><Shield /><span><strong>研判域名</strong><small>解析、证书与关联样本</small></span></button><button @click="useQuickQuery('CVE查询', 'CVE-2024-3400')"><FileSearch /><span><strong>分析CVE漏洞</strong><small>影响范围与修复建议</small></span></button></div></div>
-        <div v-else class="message-thread"><article v-for="(message, index) in messages" :key="message.id || index" class="chat-message" :class="message.role.toLowerCase()"><div class="message-avatar"><Bot v-if="message.role === 'ASSISTANT'" :size="19" /><span v-else>{{ initials }}</span></div><div class="message-content"><div class="message-meta"><strong>{{ message.role === 'ASSISTANT' ? '网络安全垂域智能体' : auth.user?.displayName }}</strong><span v-if="message.status === 'STREAMING'" class="streaming-label">分析中</span><span v-if="message.status === 'FAILED'" class="failed-label">执行失败</span></div><div v-if="message.role === 'ASSISTANT'" class="markdown" v-html="renderMarkdown(message.content)"></div><p v-else>{{ message.content }}</p></div></article></div>
+        <div v-else class="message-thread"><article v-for="(message, index) in messages" :key="message.id || index" class="chat-message" :class="message.role.toLowerCase()"><div class="message-avatar"><Bot v-if="message.role === 'ASSISTANT'" :size="19" /><span v-else>{{ initials }}</span></div><div class="message-content"><div class="message-meta"><strong>{{ message.role === 'ASSISTANT' ? '网络安全垂域智能体' : auth.user?.displayName }}</strong><span v-if="message.status === 'STREAMING'" class="streaming-label">分析中</span><span v-if="message.status === 'FAILED'" class="failed-label">执行失败</span></div><div v-if="message.role === 'ASSISTANT'" class="markdown" v-html="renderMarkdown(message.content)"></div><p v-else>{{ message.content }}</p><div v-if="message.attachments?.length" class="message-attachments"><a v-for="item in message.attachments" :key="item.id" :href="item.downloadUrl" target="_blank"><ImageIcon v-if="item.contentType.startsWith('image/')" :size="15" /><FileText v-else :size="15" /><span>{{ item.name }}</span><small>{{ formatBytes(item.sizeBytes) }}</small></a></div><div v-if="message.role === 'ASSISTANT' && message.status !== 'STREAMING'" class="message-actions"><button type="button" @click="regenerate(index)"><RotateCcw :size="15" />重新生成</button><button type="button" @click="copyAnswer(message, index)"><Check v-if="copiedMessageId === (message.id || String(index))" :size="15" /><Copy v-else :size="15" />{{ copiedMessageId === (message.id || String(index)) ? '已复制' : '复制回答' }}</button></div></div></article></div>
       </section>
-      <footer class="composer-zone"><form class="composer-box" @submit.prevent="send"><textarea ref="input" v-model="draft" rows="1" placeholder="输入研判目标，或粘贴安全事件信息…" @keydown.enter.exact.prevent="send"></textarea><div class="composer-footer"><span>Agent将调用内部安全工具，请勿提交超出授权范围的数据</span><button :disabled="loading || !draft.trim()" aria-label="发送"><Send :size="18" /></button></div></form><p v-if="error" class="workspace-error">{{ error }}</p></footer>
+      <footer class="composer-zone"><form class="composer-box" @submit.prevent="send"><div v-if="attachments.length" class="pending-attachments"><div v-for="item in attachments" :key="item.id" class="pending-attachment"><ImageIcon v-if="item.contentType.startsWith('image/')" :size="16" /><FileText v-else :size="16" /><span><strong>{{ item.name }}</strong><small>{{ formatBytes(item.sizeBytes) }}</small></span><button type="button" title="移除附件" @click="removeAttachment(item)"><X :size="14" /></button></div></div><textarea ref="input" v-model="draft" rows="1" placeholder="输入研判目标，或粘贴图片和文档…" @paste="pasteFiles" @keydown.enter.exact.prevent="send"></textarea><div class="composer-footer"><input ref="fileInput" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.csv,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx" @change="chooseFiles" /><button type="button" class="attach-button" :disabled="uploading || attachments.length >= 3" @click="fileInput?.click()"><Paperclip :size="16" />{{ uploading ? '上传中…' : '附件' }}</button><button class="send-button" :disabled="loading || uploading || (!draft.trim() && !attachments.length)" aria-label="发送"><Send :size="18" /></button></div></form><p v-if="error" class="workspace-error">{{ error }}</p></footer>
     </section>
   </main>
 </template>

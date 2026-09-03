@@ -5,6 +5,7 @@ import cn.edu.ha.secagent.domain.ChatMessage;
 import cn.edu.ha.secagent.domain.Conversation;
 import cn.edu.ha.secagent.repository.ChatMessageRepository;
 import cn.edu.ha.secagent.repository.ConversationRepository;
+import cn.edu.ha.secagent.repository.MessageAttachmentRepository;
 import cn.edu.ha.secagent.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +22,7 @@ import java.util.UUID;
 public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
+    private final MessageAttachmentRepository attachmentRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -46,7 +48,9 @@ public class ConversationService {
     public List<ConversationDtos.MessageView> messages(UUID userId, UUID conversationId) {
         requireOwned(userId, conversationId);
         return messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId)
-                .stream().map(ConversationDtos.MessageView::of).toList();
+                .stream().map(message -> ConversationDtos.MessageView.of(message,
+                        attachmentRepository.findByMessageIdOrderByCreatedAtAsc(message.getId())
+                                .stream().map(AttachmentService.AttachmentView::of).toList())).toList();
     }
 
     @Transactional
@@ -91,4 +95,3 @@ public class ConversationService {
         conversationRepository.save(conversation);
     }
 }
-

@@ -1,6 +1,7 @@
 package cn.edu.ha.secagent.agent;
 
 import cn.edu.ha.secagent.common.ApiException;
+import cn.edu.ha.secagent.conversation.AttachmentService;
 import cn.edu.ha.secagent.conversation.ConversationService;
 import cn.edu.ha.secagent.domain.AgentRun;
 import cn.edu.ha.secagent.domain.ChatMessage;
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,23 +33,30 @@ public class AgentService {
     private final ChatMessageRepository messageRepository;
     private final AgentRunRepository runRepository;
     private final UserRepository userRepository;
+    private final AttachmentService attachmentService;
     private final DifyClient difyClient;
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public PreparedRun prepare(UUID userId, UUID conversationId, String content, String requestedId) {
+    public PreparedRun prepare(UUID userId, UUID conversationId, String content, List<UUID> attachmentIds, String requestedId) {
         var conversation = conversationService.requireOwned(userId, conversationId);
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "用户不存在"));
         var requestId = requestedId == null || requestedId.isBlank() ? UUID.randomUUID().toString() : requestedId;
+        var normalizedContent = content == null ? "" : content.trim();
+        if (normalizedContent.isBlank() && (attachmentIds == null || attachmentIds.isEmpty())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_MESSAGE", "请输入消息或添加附件");
+        }
+        if (normalizedContent.isBlank()) normalizedContent = "请分析上传的附件。";
 
         var userMessage = new ChatMessage();
         userMessage.setConversation(conversation);
         userMessage.setRole("USER");
-        userMessage.setContent(content.trim());
+        userMessage.setContent(normalizedContent);
         userMessage.setStatus("COMPLETED");
         userMessage.setRequestId(requestId);
         messageRepository.save(userMessage);
+        var attachments = attachmentService.bind(userId, conversationId, userMessage, attachmentIds);
 
         var assistantMessage = new ChatMessage();
         assistantMessage.setConversation(conversation);
@@ -65,7 +74,7 @@ public class AgentService {
         run.setStatus("RUNNING");
         run.setStartedAt(LocalDateTime.now());
         runRepository.save(run);
-        conversationService.touchAfterMessage(conversationId, content);
+        conversationService.touchAfterMessage(conversationId, normalizedContent);
 
         return new PreparedRun(
                 conversationId,
@@ -73,7 +82,8 @@ public class AgentService {
                 run.getId(),
                 "hnsec_" + userId,
                 conversation.getDifyConversationId(),
-                content.trim(),
+                normalizedContent,
+                attachments,
                 requestId,
                 run.getStartedAt()
         );
@@ -87,6 +97,7 @@ public class AgentService {
                     prepared.externalUserId(),
                     prepared.content(),
                     prepared.difyConversationId(),
+                    prepared.attachments(),
                     event -> {
                         try {
                             var payload = new LinkedHashMap<String, Object>();
@@ -177,6 +188,7 @@ public class AgentService {
             String externalUserId,
             String difyConversationId,
             String content,
+            List<AttachmentService.AttachmentContent> attachments,
             String requestId,
             LocalDateTime startedAt
     ) {}

@@ -136,10 +136,23 @@ a { color: var(--blue); text-decoration: none; }
 .message-meta { height: 30px; display: flex; align-items: center; gap: 10px; }.message-meta strong { font-size: 13px; color: #17335a; }
 .streaming-label, .failed-label { padding: 2px 7px; border-radius: 999px; font-size: 10px; }.streaming-label { color: #167856; background: #e7f8f1; }.failed-label { color: #b43c4b; background: #ffedf0; }
 .markdown { max-width: 100%; overflow-wrap: anywhere; }.markdown h1,.markdown h2,.markdown h3 { color: #143461; line-height: 1.4; }.markdown h2 { font-size: 19px; margin: 20px 0 8px; }.markdown h3 { font-size: 16px; }.markdown p { margin: 8px 0; }.markdown pre { overflow-x: auto; padding: 14px; color: #dceaff; border-radius: 10px; background: #12223c; }.markdown code { font-family: Consolas, monospace; }.markdown table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }.markdown th,.markdown td { padding: 9px; border: 1px solid #d9e4ef; text-align: left; }.markdown th { background: #eef5fb; }
+.message-actions { display: flex; align-items: center; gap: 6px; margin-top: 14px; padding-top: 9px; border-top: 1px solid #e7edf4; }
+.message-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid transparent; border-radius: 7px; color: #708197; background: transparent; font-size: 11px; }
+.message-actions button:hover { color: #1f6fab; border-color: #d8e5f0; background: #f3f8fc; }
+.message-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.message-attachments a { max-width: 320px; display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d9e5ef; border-radius: 8px; color: #2b648f; background: #f7fafc; }
+.message-attachments a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-attachments a small { flex: none; color: #91a0b1; font-size: 9px; }
 .composer-zone { flex: 0 0 auto; padding: 12px 28px 19px; background: linear-gradient(transparent, #f8fafc 24%); }
 .composer-box { width: min(920px, 100%); margin: auto; border: 1px solid #cfddea; border-radius: 15px; padding: 12px 12px 9px; background: #fff; box-shadow: 0 13px 32px rgba(29,65,105,.1); }
 .composer-box textarea { width: 100%; min-height: 50px; max-height: 170px; resize: vertical; border: 0; padding: 4px 5px; outline: 0; color: #173152; background: transparent; line-height: 1.6; }
 .composer-footer { display: flex; align-items: center; gap: 12px; color: #98a4b5; font-size: 10px; }.composer-footer button { width: 38px; height: 34px; margin-left: auto; display: grid; place-items: center; border: 0; border-radius: 10px; color: #fff; background: linear-gradient(135deg, #174d94, #288cc9); }.composer-footer button:disabled { opacity: .35; cursor: not-allowed; }
+.composer-footer .attach-button { width: auto; margin-left: 0; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; color: #397299; border: 1px solid #d8e5ef; background: #f5f9fc; font-size: 11px; }
+.composer-footer .attach-button:hover:not(:disabled) { border-color: #9fc9e6; background: #eaf5fc; }.composer-footer .send-button { margin-left: auto; }
+.pending-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.pending-attachment { min-width: 170px; max-width: 290px; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 10px; border: 1px solid #d6e4ef; border-radius: 9px; color: #37739f; background: #f5f9fc; }
+.pending-attachment > span { min-width: 0; display: grid; line-height: 1.25; }.pending-attachment strong { overflow: hidden; color: #315777; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.pending-attachment small { color: #92a0ae; font-size: 9px; }
+.pending-attachment button { width: 24px; height: 24px; margin-left: auto; display: grid; place-items: center; border: 0; border-radius: 6px; color: #8292a5; background: transparent; }.pending-attachment button:hover { color: #b84250; background: #ffeef0; }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
 .workspace-error { width: min(920px, 100%); margin: 7px auto 0; color: #ba3d4d; font-size: 11px; }
 
 /* Settings */
