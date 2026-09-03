@@ -1,6 +1,7 @@
 package cn.edu.ha.secagent.conversation;
 
 import cn.edu.ha.secagent.agent.AgentService;
+import cn.edu.ha.secagent.agent.QuickQueryService;
 import cn.edu.ha.secagent.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import java.util.UUID;
 public class ConversationController {
     private final ConversationService conversationService;
     private final AgentService agentService;
+    private final QuickQueryService quickQueryService;
 
     @GetMapping
     Object list(@AuthenticationPrincipal AuthenticatedUser user,
@@ -69,6 +71,20 @@ public class ConversationController {
             @Valid @RequestBody ConversationDtos.SendMessageRequest body) {
         var prepared = agentService.prepare(user.id(), conversationId, body.message(), body.attachmentIds(), requestId);
         StreamingResponseBody stream = output -> agentService.executeStream(prepared, output);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/x-ndjson"))
+                .header("X-Request-ID", prepared.requestId())
+                .body(stream);
+    }
+
+    @PostMapping(value = "/{conversationId}/queries/stream", produces = "application/x-ndjson")
+    ResponseEntity<StreamingResponseBody> runQuickQuery(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID conversationId,
+            @RequestHeader(value = "X-Request-ID", required = false) String requestId,
+            @Valid @RequestBody ConversationDtos.IocQueryRequest body) {
+        var prepared = quickQueryService.prepare(user.id(), conversationId, body.type(), body.value(), requestId);
+        StreamingResponseBody stream = output -> quickQueryService.executeStream(prepared, output);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/x-ndjson"))
                 .header("X-Request-ID", prepared.requestId())
