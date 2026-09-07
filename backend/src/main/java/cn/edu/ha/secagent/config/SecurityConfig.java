@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableMethodSecurity
+@EnableScheduling
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final AppProperties properties;
@@ -62,7 +64,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/auth/register",
-                                "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                                "/api/auth/verification-codes", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/organizations/public", "/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "ORG_ADMIN")

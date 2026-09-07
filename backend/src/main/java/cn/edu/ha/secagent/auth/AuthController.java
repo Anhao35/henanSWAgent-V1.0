@@ -28,6 +28,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final AuthService authService;
+    private final VerificationCodeService verificationCodeService;
 
     @GetMapping("/csrf")
     Map<String, String> csrf(CsrfToken token) {
@@ -76,15 +77,29 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     Map<String, Object> forgotPassword(@Valid @RequestBody AuthDtos.ForgotPasswordRequest request) {
+        var result = authService.createPasswordReset(request.account(), request.channel());
         var response = new LinkedHashMap<String, Object>();
-        response.put("message", "如果账号存在，系统将发送密码重置指引");
-        authService.createPasswordReset(request.account()).ifPresent(token -> response.put("devResetToken", token));
+        response.put("message", result.message());
+        response.put("expiresInSeconds", result.expiresInSeconds());
+        if (result.maskedTarget() != null) response.put("maskedTarget", result.maskedTarget());
+        if (result.devCode() != null) response.put("devCode", result.devCode());
+        return response;
+    }
+
+    @PostMapping("/verification-codes")
+    Map<String, Object> sendVerificationCode(@Valid @RequestBody AuthDtos.SendVerificationCodeRequest request) {
+        var result = verificationCodeService.send(request);
+        var response = new LinkedHashMap<String, Object>();
+        response.put("message", result.message());
+        response.put("expiresInSeconds", result.expiresInSeconds());
+        if (result.maskedTarget() != null) response.put("maskedTarget", result.maskedTarget());
+        if (result.devCode() != null) response.put("devCode", result.devCode());
         return response;
     }
 
     @PostMapping("/reset-password")
     Map<String, String> resetPassword(@Valid @RequestBody AuthDtos.ResetPasswordRequest request) {
-        authService.resetPassword(request.token(), request.newPassword());
+        authService.resetPassword(request.account(), request.channel(), request.code(), request.newPassword());
         return Map.of("message", "密码重置成功，请重新登录");
     }
 
@@ -95,4 +110,3 @@ public class AuthController {
         return Map.of("message", "密码修改成功");
     }
 }
-

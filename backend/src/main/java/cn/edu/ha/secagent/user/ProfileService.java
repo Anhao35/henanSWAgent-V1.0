@@ -34,19 +34,25 @@ public class ProfileService {
         if (body.displayName() != null) user.setDisplayName(body.displayName().trim());
         if (body.email() != null) {
             var email = normalizedContact(body.email());
-            if (email != null && !email.equalsIgnoreCase(user.getEmail()) && userRepository.existsByEmailIgnoreCase(email)) {
+            boolean changed = email == null ? user.getEmail() != null : !email.equalsIgnoreCase(user.getEmail());
+            if (changed && email != null && userRepository.existsByEmailIgnoreCase(email)) {
                 throw new ApiException(HttpStatus.CONFLICT, "EMAIL_EXISTS", "邮箱已被使用");
             }
-            user.setEmail(email);
-            user.setEmailVerified(false);
+            if (changed) {
+                user.setEmail(email);
+                user.setEmailVerified(false);
+            }
         }
         if (body.phone() != null) {
             var phone = normalizedContact(body.phone());
-            if (phone != null && !phone.equals(user.getPhone()) && userRepository.existsByPhone(phone)) {
+            boolean changed = phone == null ? user.getPhone() != null : !phone.equals(user.getPhone());
+            if (changed && phone != null && userRepository.existsByPhone(phone)) {
                 throw new ApiException(HttpStatus.CONFLICT, "PHONE_EXISTS", "手机号已被使用");
             }
-            user.setPhone(phone);
-            user.setPhoneVerified(false);
+            if (changed) {
+                user.setPhone(phone);
+                user.setPhoneVerified(false);
+            }
         }
         if (body.gender() != null) profile.setGender(trimToNull(body.gender()));
         if (body.birthDate() != null) profile.setBirthDate(body.birthDate());

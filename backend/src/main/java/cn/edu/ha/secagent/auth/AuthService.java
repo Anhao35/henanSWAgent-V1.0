@@ -3,32 +3,22 @@ package cn.edu.ha.secagent.auth;
 import cn.edu.ha.secagent.common.ApiException;
 import cn.edu.ha.secagent.config.AppProperties;
 import cn.edu.ha.secagent.domain.Organization;
-import cn.edu.ha.secagent.domain.PasswordResetToken;
 import cn.edu.ha.secagent.domain.User;
 import cn.edu.ha.secagent.domain.UserProfile;
 import cn.edu.ha.secagent.domain.UserRole;
 import cn.edu.ha.secagent.domain.UserStatus;
 import cn.edu.ha.secagent.repository.OrganizationRepository;
-import cn.edu.ha.secagent.repository.PasswordResetTokenRepository;
 import cn.edu.ha.secagent.repository.UserProfileRepository;
 import cn.edu.ha.secagent.repository.UserRepository;
 import cn.edu.ha.secagent.user.UserView;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -37,17 +27,16 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserProfileRepository profileRepository;
     private final OrganizationRepository organizationRepository;
-    private final PasswordResetTokenRepository resetTokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
     private final AppProperties properties;
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final VerificationCodeService verificationCodeService;
 
     @Transactional
     public UserView register(AuthDtos.RegisterRequest request) {
         var username = request.username().trim().toLowerCase(Locale.ROOT);
-        var email = normalizeNullable(request.email());
-        var phone = normalizeNullable(request.phone());
+        boolean verifyEmail = "EMAIL".equalsIgnoreCase(request.verificationChannel());
+        var email = verifyEmail ? normalizeNullable(request.email()) : null;
+        var phone = verifyEmail ? null : normalizeNullable(request.phone());
         if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "用户名已被使用");
         }
@@ -65,6 +54,13 @@ public class AuthService {
         Organization organization = organizationRepository.findByCode(orgCode == null ? "HERCERT" : orgCode)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "ORGANIZATION_NOT_FOUND", "所属组织不存在"));
 
+        String verifiedTarget = verifyEmail ? email : phone;
+        if (verifiedTarget == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VERIFICATION_TARGET_REQUIRED",
+                    verifyEmail ? "请填写需要验证的邮箱" : "请填写需要验证的手机号");
+        }
+        verificationCodeService.verifyRegistration(request.verificationChannel(), verifiedTarget, request.verificationCode());
+
         var user = new User();
         user.setOrganization(organization);
         user.setUsername(username);
@@ -72,6 +68,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setEmail(email);
         user.setPhone(phone);
+        user.setEmailVerified(verifyEmail);
+        user.setPhoneVerified(!verifyEmail);
         user.setRole(UserRole.ANALYST);
         user.setStatus(properties.registration().requireApproval() ? UserStatus.PENDING : UserStatus.ACTIVE);
         user = userRepository.save(user);
@@ -98,45 +96,18 @@ public class AuthService {
     }
 
     @Transactional
-    public Optional<String> createPasswordReset(String account) {
-        var user = userRepository.findForLogin(account.trim()).orElse(null);
-        if (user == null || user.getStatus() == UserStatus.DISABLED) return Optional.empty();
-
-        byte[] bytes = new byte[32];
-        secureRandom.nextBytes(bytes);
-        var rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        var token = new PasswordResetToken();
-        token.setUser(user);
-        token.setTokenHash(sha256(rawToken));
-        token.setExpiresAt(LocalDateTime.now().plusMinutes(properties.passwordReset().ttlMinutes()));
-        resetTokenRepository.save(token);
-
-        if (user.getEmail() != null) {
-            try {
-                var mail = new SimpleMailMessage();
-                mail.setTo(user.getEmail());
-                mail.setSubject("河南省教育科研网安全智能体密码重置");
-                mail.setText("请在有效期内打开以下链接重置密码：\n" +
-                        properties.passwordReset().publicBaseUrl() + "/reset-password?token=" + rawToken);
-                mailSender.send(mail);
-            } catch (RuntimeException ignored) {
-                // 开发环境邮件服务未启动时，仍允许使用开发令牌完成联调。
-            }
-        }
-        return properties.passwordReset().exposeTokenInDev() ? Optional.of(rawToken) : Optional.empty();
+    public VerificationCodeService.SendResult createPasswordReset(String account, String channel) {
+        return verificationCodeService.send(new AuthDtos.SendVerificationCodeRequest(
+                "RESET_PASSWORD", channel, account));
     }
 
     @Transactional
-    public void resetPassword(String rawToken, String newPassword) {
-        var token = resetTokenRepository.findByTokenHash(sha256(rawToken))
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_TOKEN", "重置链接无效或已过期"));
-        if (token.getUsedAt() != null || token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_TOKEN", "重置链接无效或已过期");
-        }
-        token.getUser().setPasswordHash(passwordEncoder.encode(newPassword));
-        token.setUsedAt(LocalDateTime.now());
-        userRepository.save(token.getUser());
-        resetTokenRepository.save(token);
+    public void resetPassword(String account, String channel, String code, String newPassword) {
+        var user = userRepository.findForLogin(account.trim())
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_VERIFICATION_CODE", "验证码错误、已过期或已使用"));
+        verificationCodeService.verifyPasswordReset(account, channel, code);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
     }
 
     @Transactional
@@ -154,14 +125,4 @@ public class AuthService {
         if (value == null || value.isBlank()) return null;
         return value.trim().toLowerCase(Locale.ROOT);
     }
-
-    private static String sha256(String value) {
-        try {
-            var digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (Exception exception) {
-            throw new IllegalStateException(exception);
-        }
-    }
 }
-

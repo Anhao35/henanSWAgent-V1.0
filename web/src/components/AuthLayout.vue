@@ -5,6 +5,9 @@ import BrandMark from './BrandMark.vue'
 <template>
   <main class="auth-page">
     <section class="auth-identity">
+      <img class="auth-campus-art" src="/assets/zzu-campus-lineart.png" alt="" aria-hidden="true" />
+      <div class="auth-data-orbit orbit-a" aria-hidden="true"></div>
+      <div class="auth-data-orbit orbit-b" aria-hidden="true"></div>
       <div class="auth-brand">
         <BrandMark />
         <div>
@@ -13,7 +16,7 @@ import BrandMark from './BrandMark.vue'
         </div>
       </div>
       <div class="auth-intro">
-        <span class="eyebrow"><i></i> 省网安全智能研判平台</span>
+        <span class="eyebrow"><i></i> 郑州大学 · 省网安全智能研判平台</span>
         <h2>让威胁研判更快一步，<br />让每一次分析都有迹可循。</h2>
         <p>汇聚多源威胁情报、漏洞数据与智能分析能力，为全省教育行业提供安全研判支持。</p>
         <div class="trust-list">
@@ -27,4 +30,3 @@ import BrandMark from './BrandMark.vue'
     </section>
   </main>
 </template>
-

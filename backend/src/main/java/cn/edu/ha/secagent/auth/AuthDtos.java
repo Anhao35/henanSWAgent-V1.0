@@ -16,11 +16,25 @@ public final class AuthDtos {
             @NotBlank @Size(min = 10, max = 72) String password,
             @Email @Size(max = 128) String email,
             @Pattern(regexp = "^$|^1[3-9]\\d{9}$", message = "手机号格式不正确") String phone,
-            @Size(max = 64) String organizationCode
+            @Size(max = 64) String organizationCode,
+            @NotBlank @Pattern(regexp = "(?i)EMAIL|PHONE", message = "请选择邮箱或手机号验证") String verificationChannel,
+            @NotBlank @Pattern(regexp = "^\\d{4,6}$", message = "验证码格式不正确") String verificationCode
     ) {}
 
-    public record ForgotPasswordRequest(@NotBlank String account) {}
-    public record ResetPasswordRequest(@NotBlank String token, @NotBlank @Size(min = 10, max = 72) String newPassword) {}
+    public record SendVerificationCodeRequest(
+            @NotBlank @Pattern(regexp = "(?i)REGISTER|RESET_PASSWORD", message = "验证码用途不正确") String purpose,
+            @NotBlank @Pattern(regexp = "(?i)EMAIL|PHONE", message = "请选择邮箱或手机号验证") String channel,
+            @NotBlank @Size(max = 128) String target
+    ) {}
+    public record ForgotPasswordRequest(
+            @NotBlank String account,
+            @NotBlank @Pattern(regexp = "(?i)EMAIL|PHONE", message = "请选择邮箱或手机号验证") String channel
+    ) {}
+    public record ResetPasswordRequest(
+            @NotBlank String account,
+            @NotBlank @Pattern(regexp = "(?i)EMAIL|PHONE", message = "请选择邮箱或手机号验证") String channel,
+            @NotBlank @Pattern(regexp = "^\\d{4,6}$", message = "验证码格式不正确") String code,
+            @NotBlank @Size(min = 10, max = 72) String newPassword
+    ) {}
     public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 10, max = 72) String newPassword) {}
 }
-

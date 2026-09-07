@@ -2,6 +2,7 @@ package cn.edu.ha.secagent.agent;
 
 import cn.edu.ha.secagent.common.ApiException;
 import cn.edu.ha.secagent.config.AppProperties;
+import cn.edu.ha.secagent.evidence.EvidenceGateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,29 +25,70 @@ import java.util.function.Consumer;
 public class DifyWorkflowClient {
     private final AppProperties properties;
     private final ObjectMapper objectMapper;
+    private final DifyStreamTransport transport;
+    private final RunTraceService traces;
+    private final EvidenceGateway evidenceGateway;
 
-    public WorkflowResult run(String type, String value, String externalUserId, Consumer<String> statusConsumer) {
+    public WorkflowResult run(String type, String value, String externalUserId, java.util.UUID runId, Consumer<DifyClient.DifyEvent> statusConsumer) {
+        var normalizedValue = evidenceGateway.normalize(type, value);
         var targets = targets(type).stream()
                 .filter(target -> target.apiKey() != null && !target.apiKey().isBlank())
                 .toList();
-        if (targets.isEmpty()) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WORKFLOW_NOT_CONFIGURED",
-                    label(type) + "尚未配置可用的 Dify Workflow API Key");
-        }
 
         var results = new ArrayList<SingleWorkflowResult>();
-        for (var target : targets) {
-            statusConsumer.accept("正在调用" + target.name() + "子工作流");
-            results.add(call(target, type, value, externalUserId));
+        var sources = new ArrayList<Map<String,Object>>();
+        statusConsumer.accept(DifyClient.progress("统一证据网关", "正在并行查询公开情报源", "RUNNING"));
+        var evidenceBundle = evidenceGateway.query(type, normalizedValue);
+        for (var item : evidenceBundle.sources()) {
+            var source = new LinkedHashMap<String, Object>();
+            source.put("source", item.source());
+            source.put("query_success", item.querySuccess());
+            source.put("found", item.found());
+            source.put("verdict", item.verdict());
+            source.put("summary", item.summary());
+            source.put("source_url", item.sourceUrl());
+            source.put("attributes", item.attributes());
+            if (item.errorCode() != null) source.put("error_code", item.errorCode());
+            sources.add(source);
         }
+        statusConsumer.accept(DifyClient.progress("统一证据网关",
+                "公开源查询完成：成功 " + evidenceBundle.successfulSources() + "，失败 " + evidenceBundle.failedSources(),
+                evidenceBundle.partial() ? "WARNING" : "COMPLETED"));
+        for (var target : targets) {
+            if(traces.cancelled(runId)) throw new ApiException(HttpStatus.CONFLICT,"RUN_CANCELLED","已停止查询；已提交的第三方分析可能继续执行");
+            statusConsumer.accept(DifyClient.progress(target.name(),"正在直连" + target.name(),"RUNNING"));
+            try {
+                var result=call(target, type, normalizedValue, externalUserId,runId,statusConsumer);
+                results.add(result);
+                sources.add(Map.of("source",target.name(),"query_success",true,"partial",result.partial(),"answer",result.answer()));
+                statusConsumer.accept(DifyClient.progress(target.name(),target.name()+(result.partial()?"部分步骤成功":"查询完成"),result.partial()?"PARTIAL":"COMPLETED"));
+            } catch(ApiException e) {
+                if(traces.cancelled(runId)) throw e;
+                sources.add(Map.of("source",target.name(),"query_success",false,"error",e.getMessage()));
+                statusConsumer.accept(DifyClient.progress(target.name(),target.name()+"查询失败，继续保留其他来源结果","WARNING"));
+            }
+        }
+        var snapshot = new LinkedHashMap<String, Object>();
+        snapshot.put("schema_version", evidenceBundle.schemaVersion());
+        snapshot.put("type", type);
+        snapshot.put("target", normalizedValue);
+        snapshot.put("queried_at", evidenceBundle.queriedAt().toString());
+        snapshot.put("sources", sources);
+        traces.evidence(runId, snapshot);
+        if(results.isEmpty() && evidenceBundle.successfulSources() == 0)
+            throw new ApiException(HttpStatus.BAD_GATEWAY,"ALL_SOURCES_FAILED","所有已配置情报源均查询失败，不能视为未检出或安全");
 
         var answer = new StringBuilder("# ").append(label(type)).append("结果\n\n")
-                .append("查询目标：`").append(value.replace("`", "\\`")).append("`\n");
+                .append("查询目标：`").append(normalizedValue.replace("`", "\\`")).append("`\n\n")
+                .append(evidenceGateway.renderMarkdown(evidenceBundle)).append("\n");
         for (var result : results) {
             answer.append("\n## ").append(result.name()).append("\n\n").append(result.answer()).append("\n");
         }
-        var first = results.get(0);
-        return new WorkflowResult(answer.toString().trim(), first.taskId(), first.workflowRunId());
+        for(var source:sources) if(Boolean.FALSE.equals(source.get("query_success"))) answer.append("\n> ").append(source.get("source")).append("：查询失败，不能作为安全结论的依据。\n");
+        var first = results.isEmpty() ? null : results.get(0);
+        boolean partial = evidenceBundle.partial() || results.size() < targets.size() || results.stream().anyMatch(SingleWorkflowResult::partial);
+        return new WorkflowResult(answer.toString().trim(), first == null ? null : first.taskId(),
+                first == null ? null : first.workflowRunId(), partial);
     }
 
     public String normalizeType(String rawType) {
@@ -83,11 +125,11 @@ public class DifyWorkflowClient {
         };
     }
 
-    private SingleWorkflowResult call(WorkflowTarget target, String type, String value, String externalUserId) {
+    private SingleWorkflowResult call(WorkflowTarget target, String type, String value, String externalUserId,java.util.UUID runId,Consumer<DifyClient.DifyEvent> consumer) {
         var config = properties.dify();
         var payload = new LinkedHashMap<String, Object>();
         payload.put("inputs", workflowInputs(type, value));
-        payload.put("response_mode", "blocking");
+        payload.put("response_mode", "streaming");
         payload.put("user", externalUserId);
 
         try {
@@ -98,32 +140,20 @@ public class DifyWorkflowClient {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                     .build();
-            var response = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
-                    .send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "DIFY_WORKFLOW_ERROR",
-                        target.name() + "返回异常：" + response.statusCode() + " " + limit(response.body(), 300));
-            }
-            var body = objectMapper.readTree(response.body());
-            var data = body.path("data");
-            if ("failed".equalsIgnoreCase(data.path("status").asText())) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "DIFY_WORKFLOW_ERROR",
-                        target.name() + "执行失败：" + data.path("error").asText("未知错误"));
-            }
-            var answer = extractAnswer(data.path("outputs"));
-            if (answer.isBlank()) answer = extractAnswer(body.path("outputs"));
-            if (answer.isBlank() && body.path("answer").isTextual()) answer = body.path("answer").asText();
+            var result=transport.execute(request,target.apiKey(),externalUserId,true,config.timeoutSeconds(),runId,target.name(),event->{
+                if(!event.type().equals("append")&&!event.type().equals("replace")) consumer.accept(event);
+            });
+            var answer=result.answer();
             if (answer.isBlank()) {
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "DIFY_WORKFLOW_EMPTY",
                         target.name() + "已执行，但没有返回可展示的结果");
             }
-            return new SingleWorkflowResult(target.name(), answer.trim(), body.path("task_id").asText(),
-                    body.path("workflow_run_id").asText(data.path("id").asText()));
+            return new SingleWorkflowResult(target.name(), answer.trim(), result.taskId(),result.workflowRunId(),result.partial());
         } catch (ApiException exception) {
             throw exception;
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "DIFY_WORKFLOW_UNAVAILABLE",
-                    target.name() + "暂不可用：" + exception.getMessage());
+                    target.name() + "暂不可用，请检查后端配置与上游连接");
         }
     }
 
@@ -163,6 +193,6 @@ public class DifyWorkflowClient {
     }
 
     private record WorkflowTarget(String name, String apiKey) {}
-    private record SingleWorkflowResult(String name, String answer, String taskId, String workflowRunId) {}
-    public record WorkflowResult(String answer, String taskId, String workflowRunId) {}
+    private record SingleWorkflowResult(String name, String answer, String taskId, String workflowRunId,boolean partial) {}
+    public record WorkflowResult(String answer, String taskId, String workflowRunId,boolean partial) {}
 }

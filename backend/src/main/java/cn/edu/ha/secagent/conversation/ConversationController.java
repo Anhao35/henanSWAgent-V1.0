@@ -69,11 +69,13 @@ public class ConversationController {
             @PathVariable UUID conversationId,
             @RequestHeader(value = "X-Request-ID", required = false) String requestId,
             @Valid @RequestBody ConversationDtos.SendMessageRequest body) {
-        var prepared = agentService.prepare(user.id(), conversationId, body.message(), body.attachmentIds(), requestId);
+        var prepared = agentService.prepare(user.id(), conversationId, body.message(), body.attachmentIds(), requestId, body.taskMode());
         StreamingResponseBody stream = output -> agentService.executeStream(prepared, output);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/x-ndjson"))
                 .header("X-Request-ID", prepared.requestId())
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-store")
                 .body(stream);
     }
 
@@ -88,6 +90,8 @@ public class ConversationController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/x-ndjson"))
                 .header("X-Request-ID", prepared.requestId())
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-store")
                 .body(stream);
     }
 }

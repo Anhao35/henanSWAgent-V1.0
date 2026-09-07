@@ -14,7 +14,7 @@ public final class ConversationDtos {
 
     public record CreateConversationRequest(@Size(max = 160) String title) {}
     public record RenameConversationRequest(@NotBlank @Size(max = 160) String title) {}
-    public record SendMessageRequest(@Size(max = 20000) String message, List<UUID> attachmentIds) {}
+    public record SendMessageRequest(@Size(max = 20000) String message, List<UUID> attachmentIds, @Size(max=32) String taskMode) {}
     public record IocQueryRequest(@NotBlank String type, @NotBlank @Size(max = 4096) String value) {}
 
     public record ConversationView(UUID id, String title, String status, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime lastMessageAt) {

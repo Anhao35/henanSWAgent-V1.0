@@ -1,0 +1,17 @@
+identity:
+  author: anhao
+  name: security_ioc_router
+  label:
+    en_US: "SecurityIocRouter"
+    zh_Hans: "SecurityIocRouter"
+    ja_JP: "SecurityIocRouter"
+  description:
+    en_US: "SecurityIocRouter"
+    zh_Hans: "SecurityIocRouter"
+    ja_JP: "SecurityIocRouter"
+  icon: icon.svg
+strategies:
+  - strategies/security_ioc_router.yaml
+extra:
+  python:
+    source: provider/security_ioc_router.py

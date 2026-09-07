@@ -1,5 +1,6 @@
 server:
   port: ${SERVER_PORT:8088}
+  forward-headers-strategy: framework
   servlet:
     session:
       cookie:
@@ -75,12 +76,22 @@ app:
     public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}
     ttl-minutes: 20
     expose-token-in-dev: ${EXPOSE_RESET_TOKEN_IN_DEV:true}
+  verification:
+    ttl-minutes: ${VERIFICATION_CODE_TTL_MINUTES:10}
+    resend-seconds: ${VERIFICATION_CODE_RESEND_SECONDS:60}
+    max-attempts: ${VERIFICATION_CODE_MAX_ATTEMPTS:5}
+    expose-code-in-dev: ${EXPOSE_VERIFICATION_CODE_IN_DEV:true}
+    hash-secret: ${VERIFICATION_CODE_SECRET:local-development-secret-change-before-production}
+    sms:
+      webhook-url: ${SMS_WEBHOOK_URL:}
+      auth-token: ${SMS_AUTH_TOKEN:}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:19000}
     access-key: ${MINIO_ACCESS_KEY:henan_minio}
     secret-key: ${MINIO_SECRET_KEY:henan_minio_dev_password}
     bucket: ${MINIO_BUCKET:henan-sec-agent}
   dify:
+    routed-api-key: ${DIFY_ROUTED_API_KEY:}
     base-url: ${DIFY_BASE_URL:http://127.0.0.1:8081/v1}
     api-key: ${DIFY_API_KEY:}
     timeout-seconds: ${DIFY_TIMEOUT_SECONDS:1800}
@@ -91,3 +102,42 @@ app:
       url: ${DIFY_WORKFLOW_URL_API_KEY:}
       cve: ${DIFY_WORKFLOW_CVE_API_KEY:}
       hash: ${DIFY_WORKFLOW_HASH_API_KEY:}
+  research:
+    timeout-seconds: ${RESEARCH_TIMEOUT_SECONDS:12}
+    cache-minutes: ${RESEARCH_CACHE_MINUTES:30}
+    crossref-mailto: ${CROSSREF_MAILTO:}
+    open-alex-api-key: ${OPENALEX_API_KEY:}
+    semantic-scholar-api-key: ${SEMANTIC_SCHOLAR_API_KEY:}
+    open-library-enabled: ${OPEN_LIBRARY_ENABLED:false}
+  knowledge:
+    base-url: ${DIFY_DATASET_BASE_URL:http://127.0.0.1:8081/v1}
+    api-key: ${DIFY_DATASET_API_KEY:}
+    dataset-id: ${DIFY_RAG_PILOT_DATASET_ID:}
+    semantic-top-k: ${RAG_SEMANTIC_TOP_K:8}
+    keyword-top-k: ${RAG_KEYWORD_TOP_K:5}
+    max-excerpts: ${RAG_MAX_EXCERPTS:6}
+    max-context-chars: ${RAG_MAX_CONTEXT_CHARS:12000}
+  evidence:
+    timeout-seconds: ${EVIDENCE_TIMEOUT_SECONDS:15}
+    abuse-ip-db-max-age-days: ${ABUSEIPDB_MAX_AGE_DAYS:90}
+    abuse-ip-db-api-key: ${ABUSEIPDB_API_KEY:}
+    abuse-ch-auth-key: ${ABUSECH_AUTH_KEY:}
+    nvd-api-key: ${NVD_API_KEY:}
+    grey-noise-api-key: ${GREYNOISE_API_KEY:}
+    otx-api-key: ${OTX_API_KEY:}
+    endpoints:
+      abuse-ip-db: ${ABUSEIPDB_API_URL:https://api.abuseipdb.com/api/v2/check}
+      threat-fox: ${THREATFOX_API_URL:https://threatfox-api.abuse.ch/api/v1/}
+      nvd: ${NVD_API_URL:https://services.nvd.nist.gov/rest/json/cves/2.0}
+      grey-noise: ${GREYNOISE_API_URL:https://api.greynoise.io/v3/community}
+      otx: ${OTX_API_URL:https://otx.alienvault.com/api/v1/indicators}
+      epss: ${EPSS_API_URL:https://api.first.org/data/v1/epss}
+      cisa-kev: ${CISA_KEV_URL:https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json}
+      circl-hashlookup: ${CIRCL_HASHLOOKUP_URL:https://hashlookup.circl.lu/lookup}
+  deep-seek:
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:180}
+    requests-per-minute: ${DEEPSEEK_REQUESTS_PER_MINUTE:5}
+    cache-hours: ${MITRE_MAPPING_CACHE_HOURS:24}

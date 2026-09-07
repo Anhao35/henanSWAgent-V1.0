@@ -1,0 +1,47 @@
+identity:
+  name: security_ioc_router
+  author: zhaobinghuai88
+  label:
+    en_US: Security IOC Router
+    zh_Hans: 安全 IOC 路由与证据融合策略
+
+description:
+  en_US: Deterministic IOC routing and evidence fusion strategy for cybersecurity agents.
+  zh_Hans: 面向网络安全垂域智能体的 IOC 确定性识别、工具路由与证据融合策略。
+
+parameters:
+  - name: model
+    type: model-selector
+    scope: tool-call&llm
+    required: true
+    label:
+      en_US: Model
+      zh_Hans: 模型
+
+  - name: tools
+    type: array[tools]
+    required: false
+    label:
+      en_US: Tools list
+      zh_Hans: 工具列表
+
+  - name: query
+    type: string
+    required: true
+    label:
+      en_US: Query
+      zh_Hans: 用户输入
+
+  - name: maximum_iterations
+    type: number
+    required: false
+    default: 3
+    min: 1
+    max: 10
+    label:
+      en_US: Maximum Iterations
+      zh_Hans: 最大迭代次数
+
+extra:
+  python:
+    source: strategies/security_ioc_router.py

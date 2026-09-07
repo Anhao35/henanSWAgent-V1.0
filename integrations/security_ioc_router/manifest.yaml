@@ -1,0 +1,45 @@
+version: 0.0.1
+type: plugin
+author: anhao
+name: security_ioc_router
+label:
+  en_US: security_ioc_router
+  ja_JP: security_ioc_router
+  zh_Hans: security_ioc_router
+  pt_BR: security_ioc_router
+description:
+  en_US: Security IOC Router and Evidence Fusion Agent Strategy
+  ja_JP: Security IOC Router and Evidence Fusion Agent Strategy
+  zh_Hans: Security IOC Router and Evidence Fusion Agent Strategy
+  pt_BR: Security IOC Router and Evidence Fusion Agent Strategy
+icon: icon.svg
+icon_dark: icon-dark.svg
+resource:
+  memory: 268435456
+  permission:
+    tool:
+      enabled: true
+    model:
+      enabled: true
+      llm: true
+      text_embedding: false
+      rerank: false
+      tts: false
+      speech2text: false
+      moderation: false
+plugins:
+  agent_strategies:
+    - provider/security_ioc_router.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: null
+created_at: 2026-05-15T14:06:25.0398527+08:00
+privacy: PRIVACY.md
+verified: false

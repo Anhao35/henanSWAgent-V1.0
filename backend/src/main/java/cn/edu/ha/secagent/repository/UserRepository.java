@@ -14,7 +14,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByEmailIgnoreCase(String email);
     boolean existsByPhone(String phone);
 
-    @Query("select u from User u left join fetch u.organization where lower(u.username)=lower(:login) or lower(u.email)=lower(:login) or u.phone=:login")
+    @Query("select u from User u left join fetch u.organization where lower(u.username)=lower(:login) " +
+            "or (u.emailVerified=true and lower(u.email)=lower(:login)) " +
+            "or (u.phoneVerified=true and u.phone=:login)")
     Optional<User> findForLogin(@Param("login") String login);
 
     @Query("select u from User u left join fetch u.organization where u.id=:id")

@@ -36,13 +36,19 @@ public class AgentService {
     private final AttachmentService attachmentService;
     private final DifyClient difyClient;
     private final ObjectMapper objectMapper;
+    private final RunTraceService traces;
 
     @Transactional
-    public PreparedRun prepare(UUID userId, UUID conversationId, String content, List<UUID> attachmentIds, String requestedId) {
+    public PreparedRun prepare(UUID userId, UUID conversationId, String content, List<UUID> attachmentIds, String requestedId, String taskMode) {
         var conversation = conversationService.requireOwned(userId, conversationId);
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "用户不存在"));
         var requestId = requestedId == null || requestedId.isBlank() ? UUID.randomUUID().toString() : requestedId;
+        var mode = TaskIntent.resolve(taskMode, content);
+        var key = difyClient.keyFor(mode);
+        if(key == null || key.isBlank()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"DIFY_NOT_CONFIGURED","Agent 服务尚未配置");
+        var modeKey = traces.modeKey(mode, key);
+        traces.guard(conversationId, requestId);
         var normalizedContent = content == null ? "" : content.trim();
         if (normalizedContent.isBlank() && (attachmentIds == null || attachmentIds.isEmpty())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_MESSAGE", "请输入消息或添加附件");
@@ -73,7 +79,8 @@ public class AgentService {
         run.setRunType("CHAT");
         run.setStatus("RUNNING");
         run.setStartedAt(LocalDateTime.now());
-        runRepository.save(run);
+        runRepository.saveAndFlush(run);
+        traces.initialize(run.getId(), assistantMessage.getId(), mode);
         conversationService.touchAfterMessage(conversationId, normalizedContent);
 
         return new PreparedRun(
@@ -81,48 +88,52 @@ public class AgentService {
                 assistantMessage.getId(),
                 run.getId(),
                 "hnsec_" + userId,
-                conversation.getDifyConversationId(),
+                traces.conversation(conversationId, modeKey),
                 normalizedContent,
                 attachments,
                 requestId,
-                run.getStartedAt()
+                run.getStartedAt(), mode, modeKey
         );
     }
 
     public void executeStream(PreparedRun prepared, OutputStream output) {
-        var clientConnected = new AtomicBoolean(true);
-        writeSafely(output, Map.of("type", "status", "message", "请求已保存，正在连接安全智能体", "requestId", prepared.requestId()), clientConnected);
-        try {
-            var result = difyClient.streamChat(
+        try (var channel = new RunChannel(traces, prepared.runId(), prepared.assistantMessageId(), prepared.mode(), output)) {
+          try {
+            var upstreamConversation = new java.util.concurrent.atomic.AtomicReference<String>(prepared.difyConversationId());
+            var upstreamResult = difyClient.streamChat(
                     prepared.externalUserId(),
                     prepared.content(),
                     prepared.difyConversationId(),
                     prepared.attachments(),
+                    prepared.runId(), prepared.mode(),
                     event -> {
-                        try {
-                            var payload = new LinkedHashMap<String, Object>();
-                            payload.put("type", event.type());
-                            if ("status".equals(event.type())) payload.put("message", event.content());
-                            else payload.put("answer", event.content());
-                            if (event.conversationId() != null && !event.conversationId().isBlank()) {
-                                payload.put("conversationId", event.conversationId());
-                            }
-                            writeSafely(output, payload, clientConnected);
-                        } catch (Exception ignored) {
-                            // 客户端断开不应中止 Dify 执行；最终结果仍需持久化。
+                        if (!event.conversationId().isBlank() && !event.conversationId().equals(upstreamConversation.get())) {
+                            traces.conversation(prepared.conversationId(), prepared.modeKey(), event.conversationId());
+                            upstreamConversation.set(event.conversationId());
                         }
+                        channel.event(event);
                     });
+            var result = upstreamResult;
             complete(prepared, result);
-            writeSafely(output, Map.of(
+            var status=result.partial()?"PARTIAL":"COMPLETED";
+            traces.terminal(prepared.runId(), status);
+            channel.stage("finished",result.partial()?"已完成，部分上游节点异常":"分析完成",result.partial()?"WARNING":"COMPLETED");
+            channel.send(Map.of(
                     "type", "done",
                     "answer", result.answer(),
+                    "status", status,
                     "requestId", prepared.requestId(),
                     "conversationId", result.conversationId() == null ? "" : result.conversationId()
-            ), clientConnected);
+            ));
         } catch (Exception exception) {
             var message = exception instanceof ApiException ? exception.getMessage() : "Agent执行失败";
+            channel.flushPartial();
             fail(prepared, message);
-            writeSafely(output, Map.of("type", "error", "error", message, "requestId", prepared.requestId()), clientConnected);
+            var status=traces.cancelled(prepared.runId())?"CANCELLED":"FAILED";
+            traces.terminal(prepared.runId(),status);
+            channel.stage("finished",message,status);
+            channel.send(Map.of("type", "error", "error", message, "status",status,"requestId", prepared.requestId()));
+          }
         }
     }
 
@@ -137,6 +148,7 @@ public class AgentService {
 
         var run = runRepository.findById(prepared.runId()).orElseThrow();
         run.setDifyTaskId(result.taskId());
+        run.setDifyWorkflowRunId(result.workflowRunId());
         run.setStatus("COMPLETED");
         run.setFinishedAt(LocalDateTime.now());
         run.setLatencyMs(Duration.between(prepared.startedAt(), run.getFinishedAt()).toMillis());
@@ -146,7 +158,7 @@ public class AgentService {
     @Transactional
     public void fail(PreparedRun prepared, String error) {
         messageRepository.findById(prepared.assistantMessageId()).ifPresent(message -> {
-            message.setContent("分析请求执行失败，请稍后重试。");
+            if(message.getContent()==null||message.getContent().isBlank()) message.setContent("分析请求未完成，请查看运行过程。");
             message.setStatus("FAILED");
             message.setErrorMessage(limit(error));
             messageRepository.save(message);
@@ -190,7 +202,7 @@ public class AgentService {
             String content,
             List<AttachmentService.AttachmentContent> attachments,
             String requestId,
-            LocalDateTime startedAt
+            LocalDateTime startedAt, String mode, String modeKey
     ) {}
 
 }

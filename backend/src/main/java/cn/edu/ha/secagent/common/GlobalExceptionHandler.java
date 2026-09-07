@@ -13,6 +13,10 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ResponseEntity<?> handleAccessDenied() {
+        return ResponseEntity.status(403).body(Map.of("code","FORBIDDEN","message","没有权限执行此操作"));
+    }
     @ExceptionHandler(ApiException.class)
     ResponseEntity<?> handleApi(ApiException exception) {
         return ResponseEntity.status(exception.getStatus())
@@ -34,7 +38,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<?> handleBadCredentials() {
-        return ResponseEntity.status(401).body(Map.of("code", "BAD_CREDENTIALS", "message", "用户名或密码错误"));
+        return ResponseEntity.status(401).body(Map.of("code", "BAD_CREDENTIALS", "message", "账号或密码错误"));
     }
 
     @ExceptionHandler(AuthenticationException.class)

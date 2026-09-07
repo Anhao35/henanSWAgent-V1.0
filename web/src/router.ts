@@ -7,6 +7,9 @@ import ResetPasswordView from './views/ResetPasswordView.vue'
 import WorkspaceView from './views/WorkspaceView.vue'
 import ProfileView from './views/ProfileView.vue'
 import AdminUsersView from './views/AdminUsersView.vue'
+import ResearchView from './views/ResearchView.vue'
+import MitreMapperView from './views/MitreMapperView.vue'
+import ReportCenterView from './views/ReportCenterView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -18,6 +21,9 @@ const router = createRouter({
     { path: '/reset-password', component: ResetPasswordView, meta: { guest: true } },
     { path: '/workspace', component: WorkspaceView, meta: { requiresAuth: true } },
     { path: '/workspace/chat/:id', component: WorkspaceView, meta: { requiresAuth: true } },
+    { path: '/research', component: ResearchView, meta: { requiresAuth: true } },
+    { path: '/mitre-mapper', component: MitreMapperView, meta: { requiresAuth: true } },
+    { path: '/reports', component: ReportCenterView, meta: { requiresAuth: true } },
     { path: '/settings/profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/admin/users', component: AdminUsersView, meta: { requiresAuth: true, admin: true } },
   ],

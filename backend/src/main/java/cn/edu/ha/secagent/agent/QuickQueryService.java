@@ -31,6 +31,7 @@ public class QuickQueryService {
     private final UserRepository userRepository;
     private final DifyWorkflowClient workflowClient;
     private final ObjectMapper objectMapper;
+    private final RunTraceService traces;
 
     @Transactional
     public PreparedQuery prepare(UUID userId, UUID conversationId, String rawType, String rawValue, String requestedId) {
@@ -41,6 +42,7 @@ public class QuickQueryService {
         var value = rawValue == null ? "" : rawValue.trim();
         if (value.isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_QUERY", "请输入查询目标");
         var requestId = requestedId == null || requestedId.isBlank() ? UUID.randomUUID().toString() : requestedId;
+        traces.guard(conversationId,requestId);
         var display = workflowClient.label(type) + "：" + value;
 
         var userMessage = new ChatMessage();
@@ -67,7 +69,8 @@ public class QuickQueryService {
         run.setTargetType(type.toUpperCase());
         run.setStatus("RUNNING");
         run.setStartedAt(LocalDateTime.now());
-        runRepository.save(run);
+        runRepository.saveAndFlush(run);
+        traces.initialize(run.getId(),assistantMessage.getId(),"SECURITY");
         conversationService.touchAfterMessage(conversationId, display);
 
         return new PreparedQuery(conversationId, assistantMessage.getId(), run.getId(), type, value,
@@ -75,25 +78,24 @@ public class QuickQueryService {
     }
 
     public void executeStream(PreparedQuery prepared, OutputStream output) {
-        var connected = new AtomicBoolean(true);
-        writeSafely(output, Map.of("type", "status", "message", "正在直连对应安全子工作流",
-                "requestId", prepared.requestId()), connected);
-        try {
-            var result = workflowClient.run(prepared.type(), prepared.value(), prepared.externalUserId(), status -> {
-                var payload = new LinkedHashMap<String, Object>();
-                payload.put("type", "status");
-                payload.put("message", status);
-                payload.put("requestId", prepared.requestId());
-                writeSafely(output, payload, connected);
-            });
+        try(var channel=new RunChannel(traces,prepared.runId(),prepared.assistantMessageId(),"SECURITY",output)) {
+          try {
+            var result = workflowClient.run(prepared.type(), prepared.value(), prepared.externalUserId(),prepared.runId(),channel::event);
             complete(prepared, result);
-            writeSafely(output, Map.of("type", "done", "answer", result.answer(),
-                    "requestId", prepared.requestId()), connected);
+            String status=result.partial()?"PARTIAL":"COMPLETED";
+            traces.terminal(prepared.runId(),status);
+            channel.stage("finished",result.partial()?"查询结束，部分来源失败":"查询完成",result.partial()?"WARNING":"COMPLETED");
+            channel.send(Map.of("type", "done", "answer", result.answer(),"status",status,
+                    "requestId", prepared.requestId()));
         } catch (Exception exception) {
             var message = exception instanceof ApiException ? exception.getMessage() : "快捷查询执行失败";
             fail(prepared, message);
-            writeSafely(output, Map.of("type", "error", "error", message,
-                    "requestId", prepared.requestId()), connected);
+            String status=traces.cancelled(prepared.runId())?"CANCELLED":"FAILED";
+            traces.terminal(prepared.runId(),status);
+            channel.stage("finished",message,status);
+            channel.send(Map.of("type", "error", "error", message,"status",status,
+                    "requestId", prepared.requestId()));
+          }
         }
     }
 
