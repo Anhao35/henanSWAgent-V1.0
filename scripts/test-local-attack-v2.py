@@ -11,6 +11,7 @@ NORMALIZE_ID = "1779279825816"
 EXTRACTOR_ID = "local_attack_behavior_extractor_v2"
 PAYLOAD_ID = "1779280569364"
 CLEANER_ID = "1779267509398"
+BRIDGE_ID = "1779267053794"
 
 
 def require(condition: bool, message: str) -> None:
@@ -28,6 +29,10 @@ require(len(by_id) == len(nodes), "Node IDs are not unique")
 for item in edges:
     require(str(item["source"]) in by_id, f"Missing edge source: {item['source']}")
     require(str(item["target"]) in by_id, f"Missing edge target: {item['target']}")
+
+bridge_headers = by_id[BRIDGE_ID]["data"].get("headers", "")
+require("CHANGE_ME_ATTACK_BRIDGE_API_KEY" in bridge_headers, "Bridge API key placeholder is missing")
+require("sk-" not in bridge_headers, "Generated DSL contains a live-looking API credential")
 
 edge_pairs = {(str(item["source"]), str(item["target"])) for item in edges}
 require((NORMALIZE_ID, EXTRACTOR_ID) in edge_pairs, "Extractor is not after normalization")

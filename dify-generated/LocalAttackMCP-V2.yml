@@ -187,7 +187,7 @@ workflow:
           type: raw-text
         headers: 'Content-Type: application/json
 
-          X-API-Key: CHANGE_ME_ATTACK_BRIDGE_API_KEY
+          X-API-Key: CHANGE_ME_ATTACK_BRIDGE_API_KEY'
         method: post
         params: ''
         retry_config:
