@@ -52,6 +52,11 @@ SIR 远程调试插件位于 `integrations/security_ioc_router`。生产环境�
 
 ## 4. 启动平台
 
+如暂时没有 HTTPS 域名、仅通过内网 IP 验收，请先使用未占用端口（例如 `8080`），并在
+`.env.production` 中设置 `PUBLIC_ORIGIN=http://服务器IP:8080`、`WEB_PORT=8080` 和
+`SESSION_COOKIE_SECURE=false`。正式接入 HTTPS 后必须把公开地址改为 HTTPS，并将
+`SESSION_COOKIE_SECURE` 恢复为 `true`。
+
 ```bash
 cd /opt/henan-sec
 git clone git@github.com:Anhao35/henanSWAgent-V1.0.git platform
